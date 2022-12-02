@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ShowAllPlayersInServer
-// @version      1.0
+// @version      2.0
 // @description  Shows all players in a roblox server
 // @author       Haydz6
 // @match        https://www.roblox.com/games/*
@@ -17,7 +17,7 @@ async function RequestFunc(URL, Method, Headers, Body){
 }
 
 async function GetServers(PlaceId, Cursor){
-    return await RequestFunc(`https://games.roblox.com/v1/games/${PlaceId}/servers/Public?limit=9&cursor=${Cursor}`, "GET")
+    return await RequestFunc(`https://games.roblox.com/v1/games/${PlaceId}/servers/Public?limit=10&cursor=${Cursor}`, "GET")
 }
 
 async function GetImageUrlsFromTokens(Tokens){
@@ -55,7 +55,7 @@ async function GetNextServers(PlaceId){
     const Servers = await GetServers(PlaceId, LastCursor)
     LastCursor = Servers.nextPageCursor
 
-    return Servers
+    return Servers.data
 }
 
 //UI CREATION
@@ -97,10 +97,11 @@ async function CreateServerBox(Server, PlaceId){
     ServerItem.className = "rbx-game-server-item col-md-3 col-sm-4 col-xs-6"
     ServerItem.setAttribute("data-gameid", Server.id)
     ServerItem.setAttribute("data-placeid", PlaceId)
+    ServerItem.setAttribute("full-list", true)
 
     const CardItem = document.createElement("div")
     CardItem.className = "card-item"
-    CardItem.style.border = "1px solid #17e84b"
+    //CardItem.style.border = "1px solid #17e84b"
 
     const PlayerThumbnailsContainer = document.createElement("div")
     PlayerThumbnailsContainer.className = "player-thumbnails-container"
@@ -156,7 +157,7 @@ async function CreateServerBox(Server, PlaceId){
 
     ServerItem.appendChild(CardItem)
     
-    ServerList.insertBefore(ServerItem, ServerList.firstChild)
+    ServerList.appendChild(ServerItem)
 
     return ServerItem
 }
@@ -169,16 +170,52 @@ async function InitInput(){
     const PlaceId = GetPlaceIdFromURL()
 
     let Debounce = false
-    
-    const Button = await WaitForClass("rbx-running-games-load-more btn-control-md btn-full-width")
-    Button.addEventListener("click", async function(){
+
+    function RemoveRobloxDefaultServerCard(Element){
+        if (!Element.getAttribute("full-list") && Element.className.search("rbx-game-server-item") > -1){
+            Element.remove()
+        }
+    }
+
+    const ServersContainer = await WaitForId("rbx-game-server-item-container")
+    new MutationObserver(function(Mutation){
+        //if (Element[0].addedNodes.length > 0){
+        for (let i = 0; i < Mutation[0].addedNodes.length; i++){
+            RemoveRobloxDefaultServerCard(Mutation[0].addedNodes[i])
+        }
+    }).observe(ServersContainer, {childList: true})
+
+    const Cards = Array.from(ServersContainer.children)
+
+    for (let i = 0; i < Cards.length; i++){
+        RemoveRobloxDefaultServerCard(Cards[i])
+    }
+    //while (ServersContainer.firstChild) RemoveRobloxDefaultServerCard(ServersContainer.lastChild)
+
+    async function Click(){
         if (Debounce) return
         Debounce = true
 
-        await GetNextServers(PlaceId)
+        const Servers = await GetNextServers(PlaceId)
+
+        for (let i = 0; i < Servers.length; i++){
+            const Server = Servers[i]
+            Server.ImageUrls = await GetImageUrlsFromTokens(Server.playerTokens)
+            CreateServerBox(Server, PlaceId)
+        }
 
         Debounce = false
-    })
+    }
+
+    Click()
+
+    const OldButton = await WaitForClass("rbx-running-games-load-more btn-control-md btn-full-width")
+    const Button = OldButton.cloneNode(true)
+
+    OldButton.parentElement.appendChild(Button)
+    OldButton.remove()
+
+    Button.addEventListener("click", Click)
 }
 
 InitInput()
