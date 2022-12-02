@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         RBLXFinder
-// @version      2.0
+// @name         ShowAllPlayersInServer
+// @version      1.0
 // @description  Shows all players in a roblox server
 // @author       Haydz6
 // @match        https://www.roblox.com/games/*
